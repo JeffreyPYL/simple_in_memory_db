@@ -61,6 +61,7 @@ class SimpleDB(object):
             self.transaction[transactionId]['value'] = {key: value}
 
             # Get Exisiting uuid on key that is related to transaction
+            # to ensure it is not modify between transaction and commit
             # Note: python string are immutable
             if key in self.db:
                 self.transaction[transactionId]['transaction_uuid'] = {
@@ -95,6 +96,8 @@ class SimpleDB(object):
 
         if commit_immediately:
             try:
+                # Same uuid to ensure data is not modify if concurency are something we concider to implement
+                # with this DB
                 self.transaction[transactionId]['value'][key] = self.db[key]
                 self.transaction[transactionId]['transaction_uuid'][key] = self.db_transaction_id[key]
                 self.commitTransaction(transactionId)
@@ -193,6 +196,10 @@ class SimpleDB(object):
         Transaction should be isolated at the read committed level, as defined by this Wikipedia page.
         Any put, delete, get operation that is issued without a transaction ID should commit immediately.
     
+    NOTE: Since the link is not clickable on the pdf for read committed level and dirty read. I assume the
+    following behaviour. 
+    - Read will only return commited data but will not return created transaction data that is not commited
+
     NOTE: I understand that for get, put and delete request without transID, I can directly
     modify self.db to get the same result but I think if we target to grow this db implementation
     in the long run, it will be easier if all operation follow the same kind of work flow, hence
