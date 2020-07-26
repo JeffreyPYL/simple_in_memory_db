@@ -7,4 +7,4 @@
 python 3.8
 
 ##### Running the test
-`python3 -m unittest`
+`python -m unittest`
