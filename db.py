@@ -2,25 +2,6 @@ import uuid
 from typing import Dict
 from helper import checkStr
 
-'''
-Your API should accept the following:
-
--void createTransaction(String transactionId)
-    *Starts a transaction with the specified ID. The ID must not be an active
-    transaction ID.
-    *Throws an exception or returns an error on failure
--void rollbackTransaction(String transactionId)
-    *Aborts the transaction and invalidates the transaction with the specified
-    transaction ID
-    *Throws an exception or returns an error on failure
--void commitTransaction(String transactionId)
-    *Commits the transaction and invalidates the ID. If there is a conflict (meaning the
-    transaction attempts to change a value for a key that was mutated after the
-    transaction was created), the transaction always fails with an exception or an
-    error is returned.
-    Transaction should be isolated at the read committed level, as defined by this Wikipedia page.
-    Any put, delete, get operation that is issued without a transaction ID should commit immediately.
-'''
 
 class SimpleDB(object):
     def __init__(self, preset_data: Dict[str, str]=None):
@@ -38,6 +19,15 @@ class SimpleDB(object):
     def getDB(self):
         return self.db
 
+    # Assist in testing
+    def getTransaction(self):
+        return self.transaction
+
+    # Assist in testing
+    def insert_transaction(self, transaction):
+        self.transaction.update(transaction)
+        return self.getTransaction()
+
     # Check if commit immediately is needed
     def check_commit_immediately(self, transactionId):
         if transactionId == None:
@@ -45,7 +35,6 @@ class SimpleDB(object):
             self.createTransaction(transactionId)
             return True, transactionId
         return False, transactionId
-        
 
     '''
     -void put(String key, String value)
@@ -188,6 +177,12 @@ class SimpleDB(object):
         error is returned.
         Transaction should be isolated at the read committed level, as defined by this Wikipedia page.
         Any put, delete, get operation that is issued without a transaction ID should commit immediately.
+    
+    NOTE: I understand that for get, put and delete request without transID, I can directly
+    modify self.db to get the same result but I think if we target to grow this db implementation
+    in the long run, it will be easier if all operation follow the same kind of work flow, hence
+    all those function are calling commitTransaction. Also I can use commitTransaction to modify
+    update the uuid which is use to keep track of if a data have been touch.
     '''
     def commitTransaction(self, transactionId: str):
         current_transaction = self.transaction[transactionId]
@@ -201,9 +196,10 @@ class SimpleDB(object):
                 update = False
                 break
             # Check if key value have been read or modify between Transaction Create and Commit
-            if self.transaction[transactionId]['transaction_uuid'][key] != transaction_keys[key]:
-                update = False
-                break
+            if key in self.db_transaction_id:
+                if self.db_transaction_id[key] != transaction_keys[key]:
+                    update = False
+                    break
 
         if update:
             try:
@@ -216,9 +212,6 @@ class SimpleDB(object):
                 self.transaction[transactionId] = current_transaction
                 raise error
         else:
+            self.rollbackTransaction(transactionId)
             raise Exception('Transaction Commit Fail')
         
-    '''
-    Transaction should be isolated at the read committed level, as defined by this Wikipedia page.
-    Any put, delete, get operation that is issued without a transaction ID should commit immediately
-    '''
