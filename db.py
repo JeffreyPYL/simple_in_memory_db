@@ -4,7 +4,7 @@ from helper import checkStr
 
 
 class SimpleDB(object):
-    def __init__(self, preset_data: Dict[str, str]=None):
+    def __init__(self, preset_data: Dict[str, str] = None):
         self.transaction = {}
         self.db_transaction_id = {}
         # In memory JSON Object
@@ -14,7 +14,7 @@ class SimpleDB(object):
                 self.db_transaction_id[key] = uuid.uuid4()
         else:
             self.db = {}
-            
+
     # Assist in testing
     def getDB(self):
         return self.db
@@ -45,24 +45,29 @@ class SimpleDB(object):
         “transactionId”
         *Throws an exception or returns an error on failure
     '''
+
     def put(self, key: str, value: str, transactionId: str = None):
 
-        commit_immediately, transactionId = self.check_commit_immediately(transactionId)
-            
+        commit_immediately, transactionId = self.check_commit_immediately(
+            transactionId)
 
-        if not checkStr(key, value, transactionId) : raise TypeError
-        if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
+        if not checkStr(key, value, transactionId):
+            raise TypeError
+        if transactionId not in self.transaction:
+            raise Exception("Error, transactionId not in db")
 
         try:
             # Set operation within specific transaction
             self.transaction[transactionId]['value'] = {key: value}
 
-            # Get Exisiting uuid on key that is related to transaction 
+            # Get Exisiting uuid on key that is related to transaction
             # Note: python string are immutable
             if key in self.db:
-                self.transaction[transactionId]['transaction_uuid'] = {key: self.db_transaction_id[key]}
+                self.transaction[transactionId]['transaction_uuid'] = {
+                    key: self.db_transaction_id[key]}
             else:
-                self.transaction[transactionId]['transaction_uuid'] = {key: None}
+                self.transaction[transactionId]['transaction_uuid'] = {
+                    key: None}
 
         except Exception as error:
             raise error
@@ -79,10 +84,14 @@ class SimpleDB(object):
         “transactionId”
         *Throws an exception or returns an error on failure
     '''
+
     def get(self, key: str, transactionId: str = None):
-        commit_immediately, transactionId = self.check_commit_immediately(transactionId)
-        if not checkStr(key, transactionId) : raise TypeError
-        if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
+        commit_immediately, transactionId = self.check_commit_immediately(
+            transactionId)
+        if not checkStr(key, transactionId):
+            raise TypeError
+        if transactionId not in self.transaction:
+            raise Exception("Error, transactionId not in db")
 
         if commit_immediately:
             try:
@@ -107,10 +116,14 @@ class SimpleDB(object):
         “transactionId”
         *Throws an exception or returns an error on failure
     '''
+
     def delete(self, key: str, transactionId: str = None):
-        commit_immediately, transactionId = self.check_commit_immediately(transactionId)
-        if not checkStr(key, transactionId) : raise TypeError
-        if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
+        commit_immediately, transactionId = self.check_commit_immediately(
+            transactionId)
+        if not checkStr(key, transactionId):
+            raise TypeError
+        if transactionId not in self.transaction:
+            raise Exception("Error, transactionId not in db")
 
         if commit_immediately:
             current_val = self.db[key]
@@ -144,6 +157,7 @@ class SimpleDB(object):
         transaction ID.
         *Throws an exception or returns an error on failure
     '''
+
     def createTransaction(self, transactionId: str):
         if not checkStr(transactionId):
             raise TypeError
@@ -161,6 +175,7 @@ class SimpleDB(object):
         transaction ID
         *Throws an exception or returns an error on failure
     '''
+
     def rollbackTransaction(self, transactionId: str):
         if not checkStr(transactionId):
             raise TypeError
@@ -184,11 +199,12 @@ class SimpleDB(object):
     all those function are calling commitTransaction. Also I can use commitTransaction to modify
     update the uuid which is use to keep track of if a data have been touch.
     '''
+
     def commitTransaction(self, transactionId: str):
         current_transaction = self.transaction[transactionId]
         update = True
         # Get keys at transaction to check if keys at db have been modify
-        # should return json of { key: uuid, key_1: uuid_1, etc} 
+        # should return json of { key: uuid, key_1: uuid_1, etc}
         transaction_keys = self.transaction[transactionId]['transaction_uuid']
         for key in transaction_keys:
             # If key is not in db_transaction_id, make sure is None.
@@ -216,4 +232,3 @@ class SimpleDB(object):
         else:
             self.rollbackTransaction(transactionId)
             raise Exception('Transaction Commit Fail')
-        
