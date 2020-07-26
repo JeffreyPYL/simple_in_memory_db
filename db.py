@@ -87,24 +87,31 @@ class SimpleDB(object):
     '''
 
     def get(self, key: str, transactionId: str = None):
-        commit_immediately, transactionId = self.check_commit_immediately(
-            transactionId)
-        if not checkStr(key, transactionId):
-            raise TypeError
-        if transactionId not in self.transaction:
-            raise Exception("Error, transactionId not in db")
+        # commit_immediately, transactionId = self.check_commit_immediately(
+        #     transactionId)
+        # if not checkStr(key, transactionId):
+        #     raise TypeError
+        # if transactionId not in self.transaction:
+        #     raise Exception("Error, transactionId not in db")
 
-        if commit_immediately:
+        # if commit_immediately:
+        if transactionId == None:
             try:
                 # Same uuid to ensure data is not modify if concurency are something we concider to implement
                 # with this DB
-                self.transaction[transactionId]['value'][key] = self.db[key]
-                self.transaction[transactionId]['transaction_uuid'][key] = self.db_transaction_id[key]
-                self.commitTransaction(transactionId)
+                # self.transaction[transactionId]['value'][key] = self.db[key]
+                # self.transaction[transactionId]['transaction_uuid'][key] = self.db_transaction_id[key]
+                # self.commitTransaction(transactionId)
+                if not checkStr(key):
+                    raise TypeError
                 return self.db[key]
             except Exception as error:
                 raise error
         else:
+            if not checkStr(key, transactionId):
+                raise TypeError
+            if transactionId not in self.transaction:
+                raise Exception("Error, transactionId not in db")
             try:
                 return self.transaction[transactionId]['value'][key]
             except Exception as error:
@@ -121,20 +128,23 @@ class SimpleDB(object):
     '''
 
     def delete(self, key: str, transactionId: str = None):
-        commit_immediately, transactionId = self.check_commit_immediately(
-            transactionId)
-        if not checkStr(key, transactionId):
-            raise TypeError
-        if transactionId not in self.transaction:
-            raise Exception("Error, transactionId not in db")
+        # commit_immediately, transactionId = self.check_commit_immediately(
+        #     transactionId)
+        # if not checkStr(key, transactionId):
+        #     raise TypeError
+        # if transactionId not in self.transaction:
+        #     raise Exception("Error, transactionId not in db")
 
-        if commit_immediately:
+        # if commit_immediately:
+        if transactionId == None:
+            if not checkStr(key):
+                raise TypeError
             current_val = self.db[key]
             current_transaction_uuid = self.db_transaction_id[key]
             if not key in self.db:
                 raise Exception("Error, key not in db")
             try:
-                self.commitTransaction(transactionId)
+                # self.commitTransaction(transactionId)
                 del self.db[key]
                 del self.db_transaction_id[key]
             except Exception as error:
@@ -143,6 +153,10 @@ class SimpleDB(object):
                 self.db_transaction_id[key] = current_transaction_uuid
                 raise error
         else:
+            if not checkStr(key, transactionId):
+                raise TypeError
+            if transactionId not in self.transaction:
+                raise Exception("Error, transactionId not in db")
             current_val = self.transaction[transactionId]['value'][key]
             current_val_uuid = self.transaction[transactionId]['transaction_uuid'][key]
             try:
