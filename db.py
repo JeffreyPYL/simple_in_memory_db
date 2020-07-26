@@ -24,17 +24,28 @@ Your API should accept the following:
 
 class SimpleDB(object):
     def __init__(self, preset_data: Dict[str, str]=None):
+        self.transaction = {}
+        self.db_transaction_id = {}
         # In memory JSON Object
         if preset_data != None:
             self.db = preset_data
+            for key in preset_data:
+                self.db_transaction_id[key] = uuid.uuid4()
         else:
             self.db = {}
-        self.transaction = {}
-        self.db_transaction_id = {}
-
+            
     # Assist in testing
     def getDB(self):
         return self.db
+
+    # Check if commit immediately is needed
+    def check_commit_immediately(self, transactionId):
+        if transactionId == None:
+            transactionId = str(uuid.uuid4())
+            self.createTransaction(transactionId)
+            return True, transactionId
+        return False, transactionId
+        
 
     '''
     -void put(String key, String value)
@@ -46,33 +57,29 @@ class SimpleDB(object):
         *Throws an exception or returns an error on failure
     '''
     def put(self, key: str, value: str, transactionId: str = None):
-        if not checkStr(key, value) : raise TypeError
-        
-        # Transaction Operation on PUT
-        if transactionId != None:
-            if not checkStr(transactionId) : raise TypeError
-            if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
 
-            try:
-                # Set operation within specific transaction
-                self.transaction[transactionId]['value'] = {key: value}
+        commit_immediately, transactionId = self.check_commit_immediately(transactionId)
+            
 
-                # Get Exisiting uuid on key that is related to transaction 
-                # Note: python string are immutable
-                if key in self.db:
-                    self.transaction[transactionId]['transaction_uuid'] = {key: self.db_transaction_id[key]}
-                else:
-                    self.transaction[transactionId]['transaction_uuid'] = {key: None}
+        if not checkStr(key, value, transactionId) : raise TypeError
+        if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
 
-            except Exception as error:
-                raise error
-        # Immediate Commit Operation on PUT
-        else:
-            try:
-                self.db[key] = value
-                self.db_transaction_id[key] = uuid.uuid4()
-            except Exception as error:
-                raise error
+        try:
+            # Set operation within specific transaction
+            self.transaction[transactionId]['value'] = {key: value}
+
+            # Get Exisiting uuid on key that is related to transaction 
+            # Note: python string are immutable
+            if key in self.db:
+                self.transaction[transactionId]['transaction_uuid'] = {key: self.db_transaction_id[key]}
+            else:
+                self.transaction[transactionId]['transaction_uuid'] = {key: None}
+
+        except Exception as error:
+            raise error
+
+        if commit_immediately:
+            self.commitTransaction(transactionId)
 
     '''
     -String get(String key)
@@ -84,23 +91,21 @@ class SimpleDB(object):
         *Throws an exception or returns an error on failure
     '''
     def get(self, key: str, transactionId: str = None):
-        if not checkStr(key) : raise TypeError
-        
-        if transactionId != None:
+        commit_immediately, transactionId = self.check_commit_immediately(transactionId)
+        if not checkStr(key, transactionId) : raise TypeError
+        if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
 
-            if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
-
+        if commit_immediately:
             try:
-                return self.transaction[transactionId]['value'][key]
+                self.transaction[transactionId]['value'][key] = self.db[key]
+                self.transaction[transactionId]['transaction_uuid'][key] = self.db_transaction_id[key]
+                self.commitTransaction(transactionId)
+                return self.db[key]
             except Exception as error:
                 raise error
         else:
             try:
-                # Since dirty read is not allowed and get needed to be commit immediately without transaction id
-                # Change transaction unique id to indicate transaction happen to prevent commit of old traction
-                # on to the same key
-                self.db_transaction_id[key] = uuid.uuid4()
-                return self.db[key]
+                return self.transaction[transactionId]['value'][key]
             except Exception as error:
                 raise error
 
@@ -114,11 +119,25 @@ class SimpleDB(object):
         *Throws an exception or returns an error on failure
     '''
     def delete(self, key: str, transactionId: str = None):
-        if not checkStr(key) : raise TypeError
+        commit_immediately, transactionId = self.check_commit_immediately(transactionId)
+        if not checkStr(key, transactionId) : raise TypeError
+        if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
 
-        if transactionId != None:
-
-            if transactionId not in self.transaction : raise Exception("Error, transactionId not in db")
+        if commit_immediately:
+            current_val = self.db[key]
+            current_transaction_uuid = self.db_transaction_id[key]
+            if not key in self.db:
+                raise Exception("Error, key not in db")
+            try:
+                self.commitTransaction(transactionId)
+                del self.db[key]
+                del self.db_transaction_id[key]
+            except Exception as error:
+                # Revert change if somehow the operation fail
+                self.db[key] = current_val
+                self.db_transaction_id[key] = current_transaction_uuid
+                raise error
+        else:
             current_val = self.transaction[transactionId]['value'][key]
             current_val_uuid = self.transaction[transactionId]['transaction_uuid'][key]
             try:
@@ -128,20 +147,6 @@ class SimpleDB(object):
                 # Revert change if somehow the operation fail
                 self.transaction[transactionId]['value'][key] = current_val
                 self.transaction[transactionId]['transaction_uuid'][key] = current_val_uuid
-                raise error
-
-        else:
-            current_val = self.db[key]
-            current_transaction_uuid = self.db_transaction_id[key]
-            if not key in self.db:
-                raise Exception("Error, key not in db")
-            try:
-                del self.db[key]
-                del self.db_transaction_id[key]
-            except Exception as error:
-                # Revert change if somehow the operation fail
-                self.db[key] = current_val
-                self.db_transaction_id[key] = current_transaction_uuid
                 raise error
 
     '''
@@ -154,7 +159,10 @@ class SimpleDB(object):
         if not checkStr(transactionId):
             raise TypeError
         if transactionId not in self.transaction:
-            self.transaction[transactionId] = {}
+            self.transaction[transactionId] = {
+                'value': {},
+                'transaction_uuid': {}
+            }
         else:
             raise Exception("Error, Transaction Key already exists")
 
@@ -189,17 +197,19 @@ class SimpleDB(object):
         transaction_keys = self.transaction[transactionId]['transaction_uuid']
         for key in transaction_keys:
             # Check if key still exists
-            if key not in self.transaction:
+            if key not in self.transaction[transactionId]['transaction_uuid']:
                 update = False
                 break
             # Check if key value have been read or modify between Transaction Create and Commit
-            if self.transaction[key] != transaction_keys[key]:
+            if self.transaction[transactionId]['transaction_uuid'][key] != transaction_keys[key]:
                 update = False
                 break
-             
+
         if update:
             try:
-                self.db.update(self.transaction[transactionId]['value'])
+                for key in transaction_keys:
+                    self.db[key] = self.transaction[transactionId]['value'][key]
+                    self.db_transaction_id[key] = uuid.uuid4()
                 del self.transaction[transactionId]
             except Exception as error:
                 # restore transaction incase transaction fail

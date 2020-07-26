@@ -6,6 +6,7 @@ class TestSimpleDB(unittest.TestCase):
         self.test_db = SimpleDB({
             'test_get_key': 'test_val_1',
         })
+        
 
     def test_get_DB_no_transac(self):
         expected_val = 'test_val_1'
