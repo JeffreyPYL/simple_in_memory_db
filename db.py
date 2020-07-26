@@ -191,12 +191,14 @@ class SimpleDB(object):
         # should return json of { key: uuid, key_1: uuid_1, etc} 
         transaction_keys = self.transaction[transactionId]['transaction_uuid']
         for key in transaction_keys:
-            # Check if key still exists
-            if key not in self.transaction[transactionId]['transaction_uuid']:
-                update = False
-                break
-            # Check if key value have been read or modify between Transaction Create and Commit
-            if key in self.db_transaction_id:
+            # If key is not in db_transaction_id, make sure is None.
+            # So we can ensure that no delete operation have been done inbetween transaction
+            if key not in self.db_transaction_id:
+                if transaction_keys[key] != None:
+                    update = False
+                    break
+            else:
+                # Check if key value have been read or modify between Transaction Create and Commit
                 if self.db_transaction_id[key] != transaction_keys[key]:
                     update = False
                     break

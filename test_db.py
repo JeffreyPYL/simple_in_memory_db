@@ -222,6 +222,20 @@ class TestSimpleDB(unittest.TestCase):
         self.test_db.get('dirty_read_key')
         with self.assertRaises(Exception): self.test_db.commitTransaction('dirty_read_trans')
 
+        # Test delete will invalid transaction
+        self.test_db.put('delete_key', 'init_val')
+        self.test_db.createTransaction('delete_trans')
+        self.test_db.put('delete_key', 'dirty_val')
+        self.test_db.delete('delete_key')
+        with self.assertRaises(Exception): self.test_db.commitTransaction('delete_trans')
+
+        # Test modify will invalid transaction
+        self.test_db.put('put_key', 'init_val')
+        self.test_db.createTransaction('put_trans')
+        self.test_db.put('put_key', 'put_val', 'put_trans')
+        self.test_db.put('put_key', 'dirty_put_val')
+        with self.assertRaises(Exception): self.test_db.commitTransaction('put_trans')
+
         with self.assertRaises(Exception): self.test_db.commitTransaction('bad_transID')
 
 
@@ -291,7 +305,7 @@ class TestSimpleDB_Scenario(unittest.TestCase):
 
         self.test_db.createTransaction('def')
         self.test_db.put('b', 'foo', 'def')
-        
+
         '''
         NOTE: in the example this is return as bar but base on the API descibtion
         ● String get(String key, String transactionId)
